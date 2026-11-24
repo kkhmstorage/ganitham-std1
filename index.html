@@ -281,8 +281,8 @@ const ENN=['ഒന്നുമില്ല','ഒരെണ്ണം','രണ്�
 const ADJ=n=>n===1?'ഒരു':W[n];
 const birds=n=>n===1?'ഒരു കിളി':W[n]+' കിളികൾ';
 const N=n=>({t:String(n),s:W[n]});
-const PRAISE=['അടിപൊളി!','സൂപ്പർ!','കൊള്ളാം!','നല്ല മിടുക്ക്!','ശരിയാണ്!','ഹായ്, കലക്കി!'];
-const TRY=['സാരമില്ല, ഒന്നുകൂടി നോക്കൂ.','വീണ്ടും ശ്രമിക്കാം.','ഒന്ന് എണ്ണി നോക്കൂ.','ഏതാണ്ട് ശരിയായി! ഒന്നുകൂടി നോക്കൂ.'];
+const PRAISE=['മിടുക്ക്!','വളരെ നന്നായി!','ശരിയുത്തരം!','കൊള്ളാം, നന്നായി ചെയ്തു!','അഭിനന്ദനങ്ങൾ!','നല്ല മിടുക്ക്!'];
+const TRY=['സാരമില്ല, ഒന്നുകൂടി ശ്രദ്ധിച്ചു നോക്കൂ.','വീണ്ടും ശ്രമിച്ചുനോക്കൂ.','ഒന്ന് എണ്ണി നോക്കാമോ?','അടുത്തെത്തി! ഒന്നുകൂടി നോക്കൂ.'];
 const COLORS=['#ff595e','#ffb703','#1982c4','#8ac926','#6a4c93','#ff7b3a','#e85d9b','#1f9d9a'];
 const R=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
@@ -306,7 +306,15 @@ const hash=s=>{let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h
 const clipCache={};let voiceGen=0,playing=[];
 let voicePack=null;const getPack=()=>voicePack||(voicePack=fetch('voice.json').then(r=>r.json()).catch(()=>({})));
 function loadClip(s){const k=hash(s.trim());if(!clipCache[k])clipCache[k]=getPack().then(p=>{if(!p[k])throw 0;const bin=atob(p[k]),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u.buffer}).then(b=>new Promise((ok,no)=>actx().decodeAudioData(b,ok,no))).catch(()=>{window.__missing=(window.__missing||[]);window.__missing.push(s.trim());return null});return clipCache[k]}
-async function speakParts(list){const gen=++voiceGen;playing.forEach(n=>{try{n.stop()}catch(e){}});playing=[];if(!store.sound||!list.length)return;const a=actx();if(!a)return;
+let devVoice=null,mlVoices=[];
+function pickVoice(){try{mlVoices=speechSynthesis.getVoices().filter(v=>/^ml/i.test(v.lang)&&!/espeak/i.test(v.name));const pref=store.voice||'auto';
+ devVoice=pref==='clips'?null:(mlVoices.find(v=>v.name===pref)||mlVoices.find(v=>/natural/i.test(v.name)&&/sobhana/i.test(v.name))||mlVoices.find(v=>/natural|online/i.test(v.name))||mlVoices.find(v=>/google/i.test(v.name))||mlVoices[0]||null);fillVoiceSel()}catch(e){devVoice=null}}
+function fillVoiceSel(){const s=document.getElementById('voiceSel');if(!s)return;const cur=store.voice||'auto';
+ s.innerHTML=[['auto','സ്വയം തിരഞ്ഞെടുക്കുക'+(devVoice?' ('+devVoice.name+')':'')],...mlVoices.map(v=>[v.name,v.name]),['clips','ഗെയിമിലെ ശബ്ദം']].map(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;o.selected=v===cur;return o.outerHTML}).join('');
+ const n=document.getElementById('voiceNote');if(n)n.textContent=devVoice?'ഇപ്പോൾ ഉപയോഗിക്കുന്നത്: '+devVoice.name:'ഈ ബ്രൗസറിൽ മലയാളം ശബ്ദം ഇല്ല; ഗെയിമിലെ ശബ്ദം ഉപയോഗിക്കുന്നു. കൂടുതൽ സ്വാഭാവിക ശബ്ദത്തിന് Microsoft Edge ബ്രൗസറിൽ തുറക്കുക (കമ്പ്യൂട്ടർ), അല്ലെങ്കിൽ Android-ൽ Google മലയാളം ശബ്ദം ഇൻസ്റ്റാൾ ചെയ്യുക.'}
+try{pickVoice();speechSynthesis.onvoiceschanged=pickVoice}catch(e){}
+async function speakParts(list){const gen=++voiceGen;playing.forEach(n=>{try{n.stop()}catch(e){}});playing=[];try{speechSynthesis.cancel()}catch(e){}if(!store.sound||!list.length)return;
+ if(devVoice){const m=$('#mascot');try{const u=new SpeechSynthesisUtterance(list.join(' '));u.voice=devVoice;u.lang=devVoice.lang;u.rate=.88;u.pitch=1;u.onstart=()=>m.classList.add('talk');u.onend=u.onerror=()=>m.classList.remove('talk');speechSynthesis.speak(u);return}catch(e){}}const a=actx();if(!a)return;
  const bufs=await Promise.all(list.map(loadClip));if(gen!==voiceGen)return;let t=a.currentTime+.05;
  const m=$('#mascot');m.classList.add('talk');clearTimeout(window.__tk);
  for(const b of bufs){if(!b)continue;const src=a.createBufferSource();src.buffer=b;src.connect(a.destination);src.start(t);playing.push(src);t+=b.duration+.07}
@@ -321,7 +329,7 @@ function say(parts,mood){if(!Array.isArray(parts))parts=[parts];lastParts=parts;
  const b=$('#bubble');b.textContent=txt;b.style.animation='none';void b.offsetWidth;b.style.animation='';
  const m=$('#mascot');m.classList.remove('happy','think');void m.offsetWidth;if(mood)m.classList.add(mood);
  speakParts(parts.map(pspk).filter(Boolean))}
-const replay=()=>{actx();say(lastParts.length?lastParts:['വാ, നമുക്ക് കളിക്കാം!'],'happy')};
+const replay=()=>{actx();say(lastParts.length?lastParts:['വരൂ, നമുക്ക് കളിച്ചു പഠിക്കാം.'],'happy')};
 $('#bird').onclick=replay;$('#bubble').onclick=replay;
 function drawSnd(){$('#sndBtn').innerHTML=store.sound?'<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="#5a3fd6"/><path d="M16 8q3 4 0 8M18.5 5.5q5 6.5 0 13" stroke="#5a3fd6" stroke-width="2" fill="none" stroke-linecap="round"/></svg>':'<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="#999"/><path d="M16 9l6 6M22 9l-6 6" stroke="#999" stroke-width="2" stroke-linecap="round"/></svg>'}
 
@@ -361,7 +369,7 @@ const DOTS=[
 
 const G={
 /* ===== Chapter 1: shapes ===== */
-shapeCatch:{name:'രൂപം പിടിക്കാം',emo:'🔵',desc:'പറയുന്ന രൂപം മാത്രം തൊടൂ',intro:'പറയുന്ന രൂപം മാത്രം തൊടണം, കേട്ടോ!',
+shapeCatch:{name:'രൂപം പിടിക്കാം',emo:'🔵',desc:'പറയുന്ന രൂപം മാത്രം തൊടൂ',intro:'ഞാൻ പറയുന്ന രൂപം മാത്രം തൊടണം.',
  play(st,r){const pool=r<3?['circle','square','triangle']:['circle','square','triangle','rect'];const t=pool[(r+R(0,2))%pool.length];const need=R(2,4);const oth=pool.filter(x=>x!==t);
   const list=shuf([...rep(t,need),...rep(()=>pick(oth),R(5,7))]);let left=need;
   st.innerHTML=`<p class="q">${shp(t,'#ffb703',54)} <b>${SH[t].n}</b> മാത്രം തൊടൂ</p><div class="field">${list.map((k,i)=>`<button class="shapebtn" data-k="${k}" style="--d:${i*60}ms">${shp(k,pick(COLORS),R(60,86),R(-14,14))}</button>`).join('')}</div><p class="hint">ഇനി <b id="left">${left}</b> എണ്ണം കൂടി</p>`;
@@ -375,7 +383,7 @@ dots:{name:'കുത്തുകളിലൂടെ',emo:'✏️',desc:'തി�
   svg.querySelectorAll('g[data-j]').forEach(g=>g.onclick=()=>{if(cur.locked)return;const j=+g.dataset.j;if(j!==i){api.bad(null,'ചുവന്നു തിളങ്ങുന്ന കുത്തിൽ തൊടൂ.');return}
    sfx.tap();const dot=g.querySelector('.d');dot.classList.remove('nx');dot.classList.add('ok');
    if(i>0)svg.querySelector('#ln').insertAdjacentHTML('beforeend',`<line x1="${p[i-1][0]}" y1="${p[i-1][1]}" x2="${p[i][0]}" y2="${p[i][1]}"/>`);
-   i++;if(i===p.length){svg.querySelector('#ln').insertAdjacentHTML('beforeend',`<line x1="${p[i-1][0]}" y1="${p[i-1][1]}" x2="${p[0][0]}" y2="${p[0][1]}"/>`);svg.querySelector('.fill').classList.add('on');$('#rv').textContent=d.n;api.ok(null,['ഹായ്! '+d.n+'!',pick(PRAISE)])}
+   i++;if(i===p.length){svg.querySelector('#ln').insertAdjacentHTML('beforeend',`<line x1="${p[i-1][0]}" y1="${p[i-1][1]}" x2="${p[0][0]}" y2="${p[0][1]}"/>`);svg.querySelector('.fill').classList.add('on');$('#rv').textContent=d.n;api.ok(null,['നോക്കൂ, '+d.n+'!',pick(PRAISE)])}
    else svg.querySelector(`g[data-j="${i}"] .d`).classList.add('nx')})}},
 pattern:{name:'അടുത്തത് ഏത്?',emo:'🔺',desc:'വരിയിൽ അടുത്ത രൂപം കണ്ടുപിടിക്കൂ',intro:'വരിയിൽ അടുത്തതായി വരുന്ന രൂപം ഏതാണ്?',
  play(st,r){const types=[[0,1],[0,1],[0,1,2],[0,0,1],[0,1,1]];const t=types[r]||pick(types);const cs=shuf(COLORS);const toks=shuf(['circle','square','triangle']).map((k,i)=>({k,c:cs[i]}));
@@ -389,7 +397,7 @@ mothers:{name:'തിത്തിരിയുടെ അമ്മ',emo:'🐦',des
   st.innerHTML=`<div class="trail">${rep(i=>`<span class="${i===r?'here':''}">${i<r?'✔️':i===r?'🐦':'🪺'}</span>`,5).join('')}<span>🏡</span></div>`;
   const kids=n===1?'ഒരു കുഞ്ഞ്.':W[n]+' കുഞ്ഞുങ്ങൾ.';
   mcq(st,{html:`<span class="mom">${a[0]}</span>${grp(a[1],n)}`,q:['ഈ അമ്മയ്ക്ക് എത്ര കുഞ്ഞുങ്ങളുണ്ട്?'],qhtml:'ഈ അമ്മയ്ക്ക് എത്ര കുഞ്ഞുങ്ങളുണ്ട്?<span class="tap-tip" style="display:block">ഓരോന്നിലും തൊട്ട് എണ്ണാം</span>',opts:numOpts(n,1,5),ans:n,
-   msg:r===4?[kids,'ഹായ്! ഇതാ തിത്തിരിയുടെ അമ്മ! നന്ദി, കൂട്ടുകാരാ!']:[kids,pick(PRAISE),'പക്ഷേ, ഇത് തിത്തിരിയുടെ അമ്മയല്ല.']})}},
+   msg:r===4?[kids,'ഇതാ തിത്തിരിയുടെ അമ്മ! തിത്തിരിയെ സഹായിച്ചതിന് നന്ദി!']:[kids,pick(PRAISE),'പക്ഷേ, ഇത് തിത്തിരിയുടെ അമ്മയല്ല.']})}},
 basket:{name:'കൊട്ട നിറയ്ക്കാം',emo:'🥭',desc:'പറയുന്ന എണ്ണം പഴം കൊട്ടയിലിടൂ',intro:'സംഖ്യ നോക്കൂ. അത്രയും പഴം കൊട്ടയിലിടൂ!',
  play(st,r){if(!r)cur.seq=shuf([1,2,3,4,5]);const n=cur.seq[r];const f=pick(['🥭','🍋','🍊','🍎','🍌']);
   st.innerHTML=`<p class="q"><span class="target">${n}</span> <span class="word" style="display:inline">${W[n]}</span> ${f} കൊട്ടയിലിടൂ</p><div class="tree nc">${rep(`<button class="item">${f}</button>`,7).join('')}</div><div class="basket nc" id="bk"></div><div class="ctrl"><button class="big go" id="chk">ശരിയാണോ?</button></div>`;
@@ -425,7 +433,7 @@ phone:{name:'ഫോൺ ലോക്ക്',emo:'📱',desc:'വരകൾ എണ�
 oneMore:{name:'ഒന്നുകൂടി വന്നാൽ',emo:'🐤',desc:'ഒരു കിളി കൂടി വന്നാൽ എത്ര?',intro:'കൊമ്പിലെ കിളികളെ നോക്കൂ. ഒരു കിളി കൂടി വരുന്നുണ്ട്!',
  play(st,r){const n=[R(3,4),R(4,5),R(5,6),R(6,7),R(7,8)][r];const e=pick(['🐦','🐤','🦜']);
   st.innerHTML=`<p class="q" id="qq">കൊമ്പിൽ ${n} കിളികൾ</p><div class="branch">${rep(`<span class="item">${e}</span>`,n).join('')}</div><div id="ar"></div>`;
-  say(['കൊമ്പിൽ',birds(n)+'.','ദാ, ഒരു കിളി കൂടി വരുന്നു!']);
+  say(['കൊമ്പിൽ',birds(n)+'.','അതാ, ഒരു കിളി കൂടി വരുന്നു!']);
   later(()=>{st.querySelector('.branch').insertAdjacentHTML('beforeend',`<span class="item flyin">${e}</span>`);sfx.whoosh()},2600);
   later(()=>{$('#qq').remove();mcq($('#ar'),{q:['ഇപ്പോൾ ആകെ എത്ര കിളികൾ?'],opts:numOpts(n+1,2,9),ans:n+1,msg:[...plus(n,1,n+1),pick(PRAISE)]})},3700)}},
 
@@ -498,7 +506,7 @@ function finish(){const s=cur.miss===0?3:cur.miss<=3?2:1;const prev=starsOf(cur.
  const idx=gIndex(cur.ci,cur.gi);const {ci,gi}=cur;
  $('#screen').innerHTML=`<div class="stage finish"><h2>${s===3?'ഗംഭീരം!':s===2?'നന്നായി!':'കളി തീർത്തു!'}</h2><div class="bigstars">${starStr(s)}</div><p class="q" style="margin:0">${first?'പുതിയ സ്റ്റിക്കർ കിട്ടി!':'നിന്റെ സ്റ്റിക്കർ'}</p><div class="sticker">${STK[idx]}</div><p style="font-size:20px;margin:6px 0 0">${STKN[idx]}</p>
  <div class="row"><button class="big go" id="again2">വീണ്ടും കളിക്കാം</button>${idx<14?'<button class="big" id="nextg">അടുത്ത കളി ➜</button>':''}<button class="big alt" id="tomap">മാപ്പ്</button></div>${s<3?'<p class="hint">മൂന്ന് നക്ഷത്രം വേണോ? ഒന്നുകൂടി കളിച്ചുനോക്കൂ!</p>':''}</div>`;
- cur=null;say(s===3?['ഹായ്! മൂന്ന് നക്ഷത്രം!','നീയൊരു ഗണിതതാരം തന്നെ!']:['കൊള്ളാം!','ഇനിയും കളിച്ചാൽ കൂടുതൽ നക്ഷത്രം കിട്ടും.'],'happy');
+ cur=null;say(s===3?['മൂന്ന് നക്ഷത്രവും കിട്ടി!','ഗണിതത്തിൽ നല്ല മിടുക്കുണ്ട്!']:['കൊള്ളാം!','ഒന്നുകൂടി കളിച്ചാൽ കൂടുതൽ നക്ഷത്രം നേടാം.'],'happy');
  const fb=document.querySelector('.sticker').getBoundingClientRect();setTimeout(()=>confetti(fb.left+70,fb.top+70,40),1000);
  $('#again2').onclick=()=>startGame(ci,gi);$('#tomap').onclick=showMap;const ng=$('#nextg');if(ng)ng.onclick=()=>{const n=idx+1;startGame(Math.floor(n/3),n%3)}}
 function updPill(){$('#starPill').textContent='⭐ '+total()+' / 45'}
@@ -508,10 +516,11 @@ function nextSuggested(){for(let i=0;i<15;i++){if(!starsOf(CH[Math.floor(i/3)].g
 function showMap(){cur=null;document.body.style.removeProperty('--c');const got=Object.keys(store.stars).length;
  $('#screen').innerHTML=`<div class="hero"><h2>ഗണിതക്കളിക്കൂട്ടം</h2><p>ഒന്നാം ക്ലാസ് · ഭാഗം 1 · കൂട്ടുകാരനൊപ്പം കളിക്കാം</p></div><div class="map">${CH.map((c,i)=>{const s=c.g.reduce((a,id)=>a+starsOf(id),0);return`<button class="isle" style="--c:${c.c};animation-delay:${i*.08}s" data-i="${i}"><span class="num">${i+1}</span><span><h3>${c.name}</h3><small>${c.sub}</small><span class="st">⭐ ${s} / 9</span></span><span class="emo">${c.emo}</span></button>`}).join('')}</div>
  <div class="row"><button class="big" id="bookBtn">സ്റ്റിക്കർ ബുക്ക് (${got}/15)</button></div>
- <details class="teach"><summary>അധ്യാപകർക്കും രക്ഷിതാക്കൾക്കും</summary><p>SCERT കേരളം ഒന്നാം ക്ലാസ് ഗണിതം ഭാഗം 1 (2025) പാഠങ്ങളെ അടിസ്ഥാനമാക്കിയുള്ള കളികൾ. ഓരോ കളിയിലും 5 ചോദ്യങ്ങൾ; ഓരോ തവണയും പുതിയ ചോദ്യങ്ങൾ.</p><ul>${CH.map(c=>`<li><b>${c.name}</b> (${c.pages}): ${c.g.map(id=>G[id].name+' — '+G[id].desc).join('; ')}</li>`).join('')}</ul><p>എല്ലാ ചോദ്യങ്ങളും കാർട്ടൂൺ കൂട്ടുകാരൻ ഉറക്കെ വായിച്ചുകേൾപ്പിക്കും. വീണ്ടും കേൾക്കാൻ അവനിലോ മുകളിലെ ശബ്ദ ബട്ടണിലോ തൊടാം. തെറ്റിയാൽ ശിക്ഷയില്ല; സൂചന നൽകി വീണ്ടും ശ്രമിക്കാൻ പ്രോത്സാഹിപ്പിക്കും. തെറ്റുകൾ കുറയുന്തോറും കൂടുതൽ നക്ഷത്രം. എണ്ണാനുള്ള ചിത്രങ്ങളിൽ തൊട്ടാൽ നമ്പർ തെളിയുകയും ഉറക്കെ എണ്ണുകയും ചെയ്യും.</p><p style="font-size:14px;opacity:.75">ശബ്ദം: AI4Bharat Indic-TTS (IIT മദ്രാസ്) ഉപയോഗിച്ച് നിർമ്മിച്ചത്.</p><button class="big alt" id="reset" style="font-size:16px;min-height:44px">പുരോഗതി മായ്ക്കുക</button></details>`;
+ <details class="teach"><summary>അധ്യാപകർക്കും രക്ഷിതാക്കൾക്കും</summary><p>SCERT കേരളം ഒന്നാം ക്ലാസ് ഗണിതം ഭാഗം 1 (2025) പാഠങ്ങളെ അടിസ്ഥാനമാക്കിയുള്ള കളികൾ. ഓരോ കളിയിലും 5 ചോദ്യങ്ങൾ; ഓരോ തവണയും പുതിയ ചോദ്യങ്ങൾ.</p><ul>${CH.map(c=>`<li><b>${c.name}</b> (${c.pages}): ${c.g.map(id=>G[id].name+' — '+G[id].desc).join('; ')}</li>`).join('')}</ul><p>എല്ലാ ചോദ്യങ്ങളും കാർട്ടൂൺ കൂട്ടുകാരൻ ഉറക്കെ വായിച്ചുകേൾപ്പിക്കും. വീണ്ടും കേൾക്കാൻ അവനിലോ മുകളിലെ ശബ്ദ ബട്ടണിലോ തൊടാം. തെറ്റിയാൽ ശിക്ഷയില്ല; സൂചന നൽകി വീണ്ടും ശ്രമിക്കാൻ പ്രോത്സാഹിപ്പിക്കും. തെറ്റുകൾ കുറയുന്തോറും കൂടുതൽ നക്ഷത്രം. എണ്ണാനുള്ള ചിത്രങ്ങളിൽ തൊട്ടാൽ നമ്പർ തെളിയുകയും ഉറക്കെ എണ്ണുകയും ചെയ്യും.</p><p><label for="voiceSel"><b>ശബ്ദം:</b></label> <select id="voiceSel" style="font:inherit;font-size:16px;padding:6px;border-radius:10px;max-width:100%"></select><br><small id="voiceNote"></small></p><p style="font-size:14px;opacity:.75">ഗെയിമിലെ ശബ്ദം: AI4Bharat Indic-TTS (IIT മദ്രാസ്) ഉപയോഗിച്ച് നിർമ്മിച്ചത്.</p><button class="big alt" id="reset" style="font-size:16px;min-height:44px">പുരോഗതി മായ്ക്കുക</button></details>`;
  document.querySelectorAll('.isle').forEach(b=>b.onclick=()=>{sfx.tap();showChapter(+b.dataset.i)});$('#bookBtn').onclick=showBook;
+ fillVoiceSel();$('#voiceSel').onchange=e=>{store.voice=e.target.value;save();pickVoice();say(['നമസ്കാരം കുട്ടികളേ!','ഒരു പാഠം തിരഞ്ഞെടുത്ത് കളി തുടങ്ങാം.'],'happy')};
  $('#reset').onclick=e=>{const b=e.target;if(b.dataset.sure){store.stars={};save();updPill();showMap()}else{b.dataset.sure=1;b.textContent='ഉറപ്പാണോ? ഒന്നുകൂടി അമർത്തൂ'}};
- say(total()?['വീണ്ടും വന്നല്ലോ!','ഇന്ന് ഏത് കളി കളിക്കാം?']:['ഹായ് കൂട്ടുകാരേ!','ഒരു പാഠം തൊട്ട് കളി തുടങ്ങാം!'])}
+ say(total()?['വീണ്ടും കണ്ടതിൽ സന്തോഷം!','ഇന്ന് ഏത് കളി കളിക്കാം?']:['നമസ്കാരം കുട്ടികളേ!','ഒരു പാഠം തിരഞ്ഞെടുത്ത് കളി തുടങ്ങാം.'])}
 function showChapter(ci){cur=null;const c=CH[ci];document.body.style.setProperty('--c',c.c);const sug=nextSuggested();
  $('#screen').innerHTML=`<div class="banner"><div><p>പാഠം ${ci+1}</p><h2>${c.name}</h2><p>${c.sub}</p></div><span class="emo">${c.emo}</span></div><div class="games">${c.g.map((id,gi)=>`<button class="gcard" data-g="${gi}" style="animation-delay:${gi*.1}s"><span class="emo">${G[id].emo}</span><h3>${G[id].name}</h3><p>${G[id].desc}</p><div class="stars">${starStr(starsOf(id))}</div>${gIndex(ci,gi)===sug?'<span class="nextup">ഇത് കളിക്കൂ!</span>':''}</button>`).join('')}</div><div class="row"><button class="big alt" id="tomap">← മാപ്പ്</button></div>`;
  document.querySelectorAll('.gcard').forEach(b=>b.onclick=()=>{sfx.tap();startGame(ci,+b.dataset.g)});$('#tomap').onclick=showMap;say([c.name+'.','ഏത് കളി കളിക്കണം?'])}
@@ -527,13 +536,13 @@ window.__allClips=()=>{const S=new Set();const add=x=>{if(x)S.add(String(x).trim
  W.forEach(add);UM.forEach(add);IL.forEach(x=>x&&add(x+' നിന്ന്'));W.slice(1,10).forEach(x=>add(x+' പോയാൽ'));ENN.forEach(x=>{add(x+'.');add(x+'!');add(x+' വേണം.')});
  for(let n=1;n<=9;n++){add(ADJ(n)+' തൊപ്പി.');add(ADJ(n)+' തൊപ്പി!');add(ADJ(n)+' തൊപ്പി എടുത്തു.');add(ADJ(n)+' വര!');add(birds(n)+'.');add(birds(n)+' പറന്നുപോയി.')}
  for(let n=1;n<=5;n++){add(ADJ(n)+' പഴം കൊട്ടയിലിടൂ.');add(n===1?'ഒരു കുഞ്ഞ്.':W[n]+' കുഞ്ഞുങ്ങൾ.')}
- Object.values(SH).forEach(s=>{add(s.n+' മാത്രം തൊടൂ.');add(s.is)});DOTS.flat().forEach(d=>add('ഹായ്! '+d.n+'!'));
+ Object.values(SH).forEach(s=>{add(s.n+' മാത്രം തൊടൂ.');add(s.is)});DOTS.flat().forEach(d=>add('നോക്കൂ, '+d.n+'!'));
  PRAISE.forEach(add);TRY.forEach(add);Object.values(G).forEach(g=>add(g.intro));CH.forEach(c=>add(c.name+'.'));
- ['വാ, നമുക്ക് കളിക്കാം!','എല്ലാം കിട്ടി!','ഒന്നുകൂടി നോക്കൂ.','തിളങ്ങുന്ന കുത്തിൽ തൊടൂ.','ചുവന്നു തിളങ്ങുന്ന കുത്തിൽ തൊടൂ.','അടുത്തത് ഏതാണ്?','ശരി!','ഈ അമ്മയ്ക്ക് എത്ര കുഞ്ഞുങ്ങളുണ്ട്?','ഹായ്! ഇതാ തിത്തിരിയുടെ അമ്മ! നന്ദി, കൂട്ടുകാരാ!','പക്ഷേ, ഇത് തിത്തിരിയുടെ അമ്മയല്ല.',
+ ['വരൂ, നമുക്ക് കളിച്ചു പഠിക്കാം.','എല്ലാം കിട്ടി!','ഒന്നുകൂടി നോക്കൂ.','തിളങ്ങുന്ന കുത്തിൽ തൊടൂ.','ചുവന്നു തിളങ്ങുന്ന കുത്തിൽ തൊടൂ.','അടുത്തത് ഏതാണ്?','ശരി!','ഈ അമ്മയ്ക്ക് എത്ര കുഞ്ഞുങ്ങളുണ്ട്?','ഇതാ തിത്തിരിയുടെ അമ്മ! തിത്തിരിയെ സഹായിച്ചതിന് നന്ദി!','പക്ഷേ, ഇത് തിത്തിരിയുടെ അമ്മയല്ല.',
   'കൊട്ടയിൽ ഇപ്പോൾ','കുറച്ച് തിരിച്ചെടുക്കൂ.','ഇനിയും ഇടൂ.','എണ്ണം കൂടുതലുള്ള കൂട്ടം തൊടൂ.','എണ്ണം കുറവുള്ള കൂട്ടം തൊടൂ.','ശരി! ഇതിൽ','എണ്ണി നോക്കൂ.','ഏതിലാണ് കൂടുതൽ?','ഏതിലാണ് കുറവ്?',
   'സഞ്ചിയിൽ','നോക്കൂ!','കൂട്ടുകാർ','സഞ്ചിയിൽ ഇനി എത്ര തൊപ്പി?','ഒന്നുമില്ല! ഒന്നുമില്ലെങ്കിൽ പൂജ്യം.','എത്ര വരയുണ്ട്? ആ നമ്പർ അമർത്തൂ.','ഒന്നുമില്ല, പൂജ്യം!','വരകൾ ഓരോന്നായി തൊട്ട് എണ്ണൂ.','ഫോൺ തുറക്കാൻ ഒന്നു മുതൽ ഒൻപതു വരെ ക്രമത്തിൽ അമർത്തൂ.','ഫോൺ തുറന്നു!','ഇനി','അമർത്തൂ.',
-  'കൊമ്പിൽ','ദാ, ഒരു കിളി കൂടി വരുന്നു!','ഇപ്പോൾ ആകെ എത്ര കിളികൾ?','മുതൽ','വരെ ക്രമത്തിൽ പൊട്ടിക്കൂ.','വരെ!','ആണ് വേണ്ടത്.','ആകെ എത്ര?','തിരി വേണം.','പത്തെണ്ണം ഇപ്പോഴുണ്ട്. ബാക്കി കൂടി വെക്കൂ.','ഇപ്പോൾ','ആയി.','വേണം.','കുറച്ച് എടുത്തുമാറ്റൂ.','ഇനിയും വെക്കൂ.',
-  'ചേർന്നാൽ എത്ര?','ബാക്കി എത്ര കിളികൾ?','മുട്ട തൊട്ട് ട്രേ നിറയ്ക്കൂ.','ട്രേ നിറഞ്ഞു!','ഹായ്! മൂന്ന് നക്ഷത്രം!','നീയൊരു ഗണിതതാരം തന്നെ!','കൊള്ളാം!','ഇനിയും കളിച്ചാൽ കൂടുതൽ നക്ഷത്രം കിട്ടും.','വീണ്ടും വന്നല്ലോ!','ഇന്ന് ഏത് കളി കളിക്കാം?','ഹായ് കൂട്ടുകാരേ!','ഒരു പാഠം തൊട്ട് കളി തുടങ്ങാം!','ഏത് കളി കളിക്കണം?','എല്ലാ സ്റ്റിക്കറുകളും ശേഖരിക്കാമോ?'].forEach(add);
+  'കൊമ്പിൽ','അതാ, ഒരു കിളി കൂടി വരുന്നു!','ഇപ്പോൾ ആകെ എത്ര കിളികൾ?','മുതൽ','വരെ ക്രമത്തിൽ പൊട്ടിക്കൂ.','വരെ!','ആണ് വേണ്ടത്.','ആകെ എത്ര?','തിരി വേണം.','പത്തെണ്ണം ഇപ്പോഴുണ്ട്. ബാക്കി കൂടി വെക്കൂ.','ഇപ്പോൾ','ആയി.','വേണം.','കുറച്ച് എടുത്തുമാറ്റൂ.','ഇനിയും വെക്കൂ.',
+  'ചേർന്നാൽ എത്ര?','ബാക്കി എത്ര കിളികൾ?','മുട്ട തൊട്ട് ട്രേ നിറയ്ക്കൂ.','ട്രേ നിറഞ്ഞു!','മൂന്ന് നക്ഷത്രവും കിട്ടി!','ഗണിതത്തിൽ നല്ല മിടുക്കുണ്ട്!','കൊള്ളാം!','ഒന്നുകൂടി കളിച്ചാൽ കൂടുതൽ നക്ഷത്രം നേടാം.','വീണ്ടും കണ്ടതിൽ സന്തോഷം!','ഇന്ന് ഏത് കളി കളിക്കാം?','നമസ്കാരം കുട്ടികളേ!','ഒരു പാഠം തിരഞ്ഞെടുത്ത് കളി തുടങ്ങാം.','ഏത് കളി കളിക്കണം?','എല്ലാ സ്റ്റിക്കറുകളും ശേഖരിക്കാമോ?'].forEach(add);
  return [...S].map(s=>[hash(s),s])};
 }
 
